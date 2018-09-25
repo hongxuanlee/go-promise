@@ -1,3 +1,6 @@
+# Vim temp file
+*.swp
+*.swo
 # Binaries for programs and plugins
 *.exe
 *.exe~
