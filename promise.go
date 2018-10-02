@@ -4,15 +4,15 @@ import (
 	"reflect"
 )
 
-type promiseCallback func(interface{}) (interface{}, error)
-
-type errorCallback func(error) (interface{}, error)
-
 // ResolveHandler excute when promise object success
 type ResolveHandler func(interface{})
 
 // RejectHandler excute when promise object failed
 type RejectHandler func(error)
+
+type promiseCallback func(interface{}) (interface{}, error)
+
+type errorCallback func(error) (interface{}, error)
 
 //Interface represents a Promise Object.
 type Interface interface {
@@ -146,7 +146,7 @@ func (p *innerPromise) Finally(fn func() error) Interface {
 }
 
 // All returns a single Promise that resolves when all of the promises in the iterable argument have resolved or when the iterable argument contains no promises. It rejects with the reason of the first promise that rejects.
-//func All() Interface {
+//func All(promises []Interface) Interface {
 //
 //}
 
@@ -156,11 +156,15 @@ func (p *innerPromise) Finally(fn func() error) Interface {
 //}
 
 // Resolve returns a Promise object that is resolved with the given value. If the value is a promise, that promise is returned; if the value is a thenable (i.e. has a "then" method), the returned promise will "follow" that thenable, adopting its eventual state; otherwise the returned promise will be fulfilled with the value.
-//func Resolve() Interface {
-//
-//}
+func Resolve(res interface{}) Interface {
+	p := innerPromise{make(chan struct{}), make(chan struct{}), nil, nil}
+	p.resolve(res)
+	return &p
+}
 
 // Reject returns a Promise object that is rejected with the given reason.
-//func Reject() Interface {
-//
-//}
+func Reject(err error) Interface {
+	p := innerPromise{make(chan struct{}), make(chan struct{}), nil, nil}
+	p.reject(err)
+	return &p
+}
