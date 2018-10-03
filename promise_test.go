@@ -3,17 +3,21 @@ package promise
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
 )
 
-func addone(num interface{}) (interface{}, error) {
+func addone(n ...interface{}) (interface{}, error) {
 	time.Sleep(200 * time.Millisecond)
-	return num.(int) + 1, nil
+	if len(n) > 0 {
+		return n[0].(int) + 1, nil
+	}
+	return 0, nil
 }
 
-func Test_promise(t *testing.T) {
+func Test_Promisify(t *testing.T) {
 	p := Promisify(addone)
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -28,7 +32,7 @@ func Test_promise(t *testing.T) {
 	wg.Wait()
 }
 
-func Test_newPromise(t *testing.T) {
+func Test_NewPromise(t *testing.T) {
 	fn := NewPromise(func(resolve ResolveHandler, reject RejectHandler) {
 		time.Sleep(200 * time.Millisecond)
 		resolve(100)
@@ -43,7 +47,7 @@ func Test_newPromise(t *testing.T) {
 	wg.Wait()
 }
 
-func Test_reject(t *testing.T) {
+func Test_Reject(t *testing.T) {
 	fn := NewPromise(func(resolve ResolveHandler, reject RejectHandler) {
 		time.Sleep(200 * time.Millisecond)
 		reject(errors.New("something wrong"))
@@ -61,7 +65,7 @@ func Test_reject(t *testing.T) {
 	wg.Wait()
 }
 
-func Test_errorReject(t *testing.T) {
+func Test_ErrorReject(t *testing.T) {
 	p := Promisify(addone)
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -97,7 +101,7 @@ func Test_Finally(t *testing.T) {
 	wg.Wait()
 }
 
-func Test_promise_lazy_excute(t *testing.T) {
+func Test_Promise_Lazy_Excute(t *testing.T) {
 	p := Promisify(addone)
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -123,6 +127,13 @@ func Test_PromiseAll(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	All(ps).Then(func(data interface{}) (res interface{}, err error) {
+		result, e := interfaceToArray(data)
+		if e != nil {
+			t.Fatal(e)
+			wg.Done()
+			return
+		}
+		assertArrayEqual(t, []interface{}{1, 2, 3}, result, "")
 		wg.Done()
 		return
 	})
@@ -154,4 +165,34 @@ func assertEqual(t *testing.T, expect interface{}, actual interface{}, message s
 		message = fmt.Sprintf("expect %v !=  actual %v", expect, actual)
 	}
 	t.Fatal(message)
+}
+
+func assertArrayEqual(t *testing.T, expect []interface{}, actual []interface{}, message string) {
+	if len(message) == 0 {
+		message = fmt.Sprintf("expect %v !=  actual %v", expect, actual)
+	}
+	if len(expect) != len(actual) {
+		t.Fatal(message)
+	}
+	for i, exp := range expect {
+		if exp != actual[i] {
+			t.Fatal(message)
+		}
+	}
+}
+
+func interfaceToArray(v interface{}) (res []interface{}, err error) {
+	rt := reflect.TypeOf(v)
+	switch rt.Kind() {
+	case reflect.Slice:
+		s := reflect.ValueOf(v)
+		args := make([]interface{}, s.Len())
+		for i := 0; i < s.Len(); i++ {
+			args[i] = s.Index(i).Interface()
+		}
+		res = args
+	default:
+		err = errors.New("params not slice")
+	}
+	return
 }

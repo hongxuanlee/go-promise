@@ -10,18 +10,20 @@ type ResolveHandler func(interface{})
 // RejectHandler excute when promise object failed
 type RejectHandler func(error)
 
-type promiseCallback func(interface{}) (interface{}, error)
+// PromiseCallback excute when promise fulfill success
+type PromiseCallback func(interface{}) (interface{}, error)
 
-type errorCallback func(error) (interface{}, error)
+// ErrorCallback excute when promise fullfill fail
+type ErrorCallback func(error) (interface{}, error)
 
 //Interface represents a Promise Object.
 type Interface interface {
 
 	//Then represents a returns a Promise. It takes up to two arguments: callback functions for the success and failure cases of the Promise
-	Then(promiseCallback) Interface
+	Then(PromiseCallback) Interface
 
 	//Catch returns a Promise and deals with rejected cases only
-	Catch(errorCallback) Interface
+	Catch(ErrorCallback) Interface
 
 	//Finally returns a Promise. When the promise is settled, whether fulfilled or rejected, the specified callback function is executed. This provides a way for code that must be executed once the Promise has been dealt with to be run whether the promise was fulfilled successfully or rejected
 	Finally(func() error) Interface
@@ -32,23 +34,6 @@ type innerPromise struct {
 	cancel chan struct{}
 	val    interface{}
 	err    error
-}
-
-func transFunc(fn func(...interface{}) (interface{}, error)) func(interface{}) (interface{}, error) {
-	return func(v interface{}) (interface{}, error) {
-		rt := reflect.TypeOf(v)
-		switch rt.Kind() {
-		case reflect.Slice:
-			s := reflect.ValueOf(v)
-			args := make([]interface{}, s.Len())
-			for i := 0; i < s.Len(); i++ {
-				args[i] = s.Index(i).Interface()
-			}
-			return fn(args...)
-		default:
-			return fn(v)
-		}
-	}
 }
 
 // NewPromise represent initial promise object
@@ -65,13 +50,13 @@ func NewPromise(fn func(ResolveHandler, RejectHandler)) Interface {
 }
 
 // Promisify represents to promisefy sync function to async
-func Promisify(fn func(interface{}) (interface{}, error)) func(interface{}) Interface {
+func Promisify(fn func(v ...interface{}) (interface{}, error)) func(...interface{}) Interface {
 	doneChan := make(chan struct{})
 	cancelChan := make(chan struct{})
 	promise := innerPromise{doneChan, cancelChan, nil, nil}
-	return func(v interface{}) Interface {
+	return func(v ...interface{}) Interface {
 		go func() {
-			res, err := fn(v)
+			res, err := fn(v...)
 			if err != nil {
 				promise.reject(err)
 			} else {
@@ -82,18 +67,8 @@ func Promisify(fn func(interface{}) (interface{}, error)) func(interface{}) Inte
 	}
 }
 
-func (p *innerPromise) resolve(res interface{}) {
-	p.val = res
-	p.done <- struct{}{}
-}
-
-func (p *innerPromise) reject(err error) {
-	p.err = err
-	p.cancel <- struct{}{}
-}
-
 // Catch when error occurring
-func (p *innerPromise) Catch(errCb errorCallback) Interface {
+func (p *innerPromise) Catch(errCb ErrorCallback) Interface {
 	if p.err == nil {
 		return p
 	}
@@ -109,7 +84,7 @@ func (p *innerPromise) Catch(errCb errorCallback) Interface {
 }
 
 // Then returns a Promise. callback functions.
-func (p *innerPromise) Then(next promiseCallback) Interface {
+func (p *innerPromise) Then(next PromiseCallback) Interface {
 	if p.err != nil {
 		return p
 	}
@@ -145,46 +120,39 @@ func (p *innerPromise) Finally(fn func() error) Interface {
 	return p
 }
 
+func (p *innerPromise) resolve(res interface{}) {
+	p.val = res
+	p.done <- struct{}{}
+}
+
+func (p *innerPromise) reject(err error) {
+	p.err = err
+	p.cancel <- struct{}{}
+}
+
 // All returns a single Promise that resolves when all of the promises in the iterable argument have resolved or when the iterable argument contains no promises. It rejects with the reason of the first promise that rejects.
 func All(promises []Interface) Interface {
 	nextp := innerPromise{make(chan struct{}), make(chan struct{}), nil, nil}
 	result := make([]interface{}, len(promises))
-	chanGroup := make(chan struct{})
-	errChan := make(chan struct{})
-	var npErr error
+	count := 0
 	for i, p := range promises {
 		go func(i int, p Interface) {
 			p.Then(func(data interface{}) (res interface{}, err error) {
+				count++
 				result[i] = data
-				chanGroup <- struct{}{}
+				if count == len(promises) {
+					nextp.resolve(result)
+					return
+				}
 				return
 			}).Catch(func(e error) (res interface{}, err error) {
 				if e != nil {
-					npErr = e
-					errChan <- struct{}{}
+					nextp.reject(e)
 				}
 				return
 			})
 		}(i, p)
 	}
-
-	go func() {
-		count := 0
-		for count < len(promises) {
-			count++
-			select {
-			case <-chanGroup:
-				if count == len(promises) {
-					nextp.resolve(result)
-					return
-				}
-			case <-errChan:
-				nextp.reject(npErr)
-				return
-			}
-		}
-
-	}()
 
 	return &nextp
 }
@@ -192,37 +160,19 @@ func All(promises []Interface) Interface {
 // Race returns a promise that resolves or rejects as soon as one of the promises in the iterable resolves or rejects, with the value or reason from that promise.
 func Race(promises []Interface) Interface {
 	nextp := innerPromise{make(chan struct{}), make(chan struct{}), nil, nil}
-	doneChan := make(chan struct{})
-	errChan := make(chan struct{})
-	var result interface{}
-	var npErr error
 	for i, p := range promises {
 		go func(i int, p Interface) {
 			p.Then(func(data interface{}) (res interface{}, err error) {
-				result = data
-				doneChan <- struct{}{}
+				nextp.resolve(data)
 				return
 			}).Catch(func(e error) (res interface{}, err error) {
 				if e != nil {
-					npErr = e
-					errChan <- struct{}{}
+					nextp.reject(e)
 				}
 				return
 			})
 		}(i, p)
 	}
-
-	go func() {
-		select {
-		case <-doneChan:
-			nextp.resolve(result)
-			return
-		case <-errChan:
-			nextp.reject(npErr)
-			return
-		}
-	}()
-
 	return &nextp
 }
 

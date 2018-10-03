@@ -1,5 +1,7 @@
 ## Go Promise Libaray
 
+[![Build Status](https://travis-ci.com/hongxuanlee/go-promise.svg?branch=master)](https://travis-ci.com/hongxuanlee/go-promise)
+
 Inspired by JS Standard built-in objects - Promise, This is a Promise Libaray for Golang.
 
 ## Promise
