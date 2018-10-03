@@ -21,38 +21,42 @@ A pending promise can either be fulfilled with a value, or rejected with a reaso
 
 ```go
   p := NewPromise(func(resolve ResolveHandler, reject RejectHandler) {
-		time.Sleep(200 * time.Millisecond)
-		resolve(100)
-	})
-	fn.Then(func(data interface{}) (res interface{}, err error) {
-    fmt.Println(res)
-	})
+      time.Sleep(200 * time.Millisecond)
+      resolve(100)
+  })
+  fn.Then(func(data interface{}) (res interface{}, err error) {
+      fmt.Println(res)
+  })
 ```
 
 - Promisefy normal function
 
 ```go
+  import "github.com/hongxuanlee/go-promise"
+  
   func addone(num interface{}) (interface{}, error) {
-	   time.Sleep(200 * time.Millisecond)
-	   return num.(int) + 1, nil
+      time.Sleep(200 * time.Millisecond)
+      return num.(int) + 1, nil
   }
-  p := Promisify(addone)
-	var wg sync.WaitGroup
-	wg.Add(1)
-	p(1).Then(func(data interface{}) (res interface{}, err error) {
-		 return p(data), nil
-	}).Then(func(data interface{}) (res interface{}, err error) {
-     fmt.Println(data) // should be 3
-		 wg.Done()
-		 return
-	})
+  p := promise.Promisify(addone)
+  var wg sync.WaitGroup
+  wg.Add(1)
+  p(1).Then(func(data interface{}) (res interface{}, err error) {
+       return p(data), nil
+  }).Then(func(data interface{}) (res interface{}, err error) {
+      fmt.Println(data) // should be 3
+      wg.Done()
+      return
+  })
   
 ```
 
 - Error catch 
 
 ```go
-  fn := NewPromise(func(resolve ResolveHandler, reject RejectHandler) {
+  import "github.com/hongxuanlee/go-promise"
+  
+  fn := promise.NewPromise(func(resolve ResolveHandler, reject RejectHandler) {
   	time.Sleep(200 * time.Millisecond)
   	reject(errors.New("something wrong"))
   })
@@ -72,31 +76,35 @@ A pending promise can either be fulfilled with a value, or rejected with a reaso
 
 - Promise All
 
-```
+```go
+  import "github.com/hongxuanlee/go-promise"
+  
   ps := []Interface{p1, p2, p3}
-	var wg sync.WaitGroup
-	wg.Add(1)
-	All(ps).Then(func(data interface{}) (res interface{}, err error) {
-    fmt.Println(data)
-		wg.Done()
-		return
-	})
-	wg.Wait()
+  var wg sync.WaitGroup
+  wg.Add(1)
+  promise.All(ps).Then(func(data interface{}) (res interface{}, err error) {
+      fmt.Println(data) 
+      wg.Done()
+      return
+  })
+  wg.Wait()
 
 ```
 
 - Promise Race
 
-```
+```go
+  import "github.com/hongxuanlee/go-promise"
+  
   ps := []Interface{p1, p2, p3}
-	var wg sync.WaitGroup
-	wg.Add(1)
-	All(ps).Race(func(data interface{}) (res interface{}, err error) {
-    fmt.Println(data)
-		wg.Done()
-		return
-	})
-	wg.Wait()
+  var wg sync.WaitGroup
+  wg.Add(1)
+  promise.Race(ps).Then(func(data interface{}) (res interface{}, err error) {
+      fmt.Println(data) 
+      wg.Done()
+      return
+  })
+  wg.Wait()
 
 ```
 
