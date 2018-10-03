@@ -146,25 +146,100 @@ func (p *innerPromise) Finally(fn func() error) Interface {
 }
 
 // All returns a single Promise that resolves when all of the promises in the iterable argument have resolved or when the iterable argument contains no promises. It rejects with the reason of the first promise that rejects.
-//func All(promises []Interface) Interface {
-//
-//}
+func All(promises []Interface) Interface {
+	nextp := innerPromise{make(chan struct{}), make(chan struct{}), nil, nil}
+	result := make([]interface{}, len(promises))
+	chanGroup := make(chan struct{})
+	errChan := make(chan struct{})
+	var npErr error
+	for i, p := range promises {
+		go func(i int, p Interface) {
+			p.Then(func(data interface{}) (res interface{}, err error) {
+				result[i] = data
+				chanGroup <- struct{}{}
+				return
+			}).Catch(func(e error) (res interface{}, err error) {
+				if e != nil {
+					npErr = e
+					errChan <- struct{}{}
+				}
+				return
+			})
+		}(i, p)
+	}
+
+	go func() {
+		count := 0
+		for count < len(promises) {
+			count++
+			select {
+			case <-chanGroup:
+				if count == len(promises) {
+					nextp.resolve(result)
+					return
+				}
+			case <-errChan:
+				nextp.reject(npErr)
+				return
+			}
+		}
+
+	}()
+
+	return &nextp
+}
 
 // Race returns a promise that resolves or rejects as soon as one of the promises in the iterable resolves or rejects, with the value or reason from that promise.
-//func Race() Interface {
-//
-//}
+func Race(promises []Interface) Interface {
+	nextp := innerPromise{make(chan struct{}), make(chan struct{}), nil, nil}
+	doneChan := make(chan struct{})
+	errChan := make(chan struct{})
+	var result interface{}
+	var npErr error
+	for i, p := range promises {
+		go func(i int, p Interface) {
+			p.Then(func(data interface{}) (res interface{}, err error) {
+				result = data
+				doneChan <- struct{}{}
+				return
+			}).Catch(func(e error) (res interface{}, err error) {
+				if e != nil {
+					npErr = e
+					errChan <- struct{}{}
+				}
+				return
+			})
+		}(i, p)
+	}
+
+	go func() {
+		select {
+		case <-doneChan:
+			nextp.resolve(result)
+			return
+		case <-errChan:
+			nextp.reject(npErr)
+			return
+		}
+	}()
+
+	return &nextp
+}
 
 // Resolve returns a Promise object that is resolved with the given value. If the value is a promise, that promise is returned; if the value is a thenable (i.e. has a "then" method), the returned promise will "follow" that thenable, adopting its eventual state; otherwise the returned promise will be fulfilled with the value.
 func Resolve(res interface{}) Interface {
 	p := innerPromise{make(chan struct{}), make(chan struct{}), nil, nil}
-	p.resolve(res)
+	go func() {
+		p.resolve(res)
+	}()
 	return &p
 }
 
 // Reject returns a Promise object that is rejected with the given reason.
 func Reject(err error) Interface {
 	p := innerPromise{make(chan struct{}), make(chan struct{}), nil, nil}
-	p.reject(err)
+	go func() {
+		p.reject(err)
+	}()
 	return &p
 }

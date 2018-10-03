@@ -40,11 +40,11 @@ A pending promise can either be fulfilled with a value, or rejected with a reaso
 	var wg sync.WaitGroup
 	wg.Add(1)
 	p(1).Then(func(data interface{}) (res interface{}, err error) {
-		return p(data), nil
+		 return p(data), nil
 	}).Then(func(data interface{}) (res interface{}, err error) {
-    fmt.Println(data) // should be 3
-		wg.Done()
-		return
+     fmt.Println(data) // should be 3
+		 wg.Done()
+		 return
 	})
   
 ```
@@ -53,27 +53,52 @@ A pending promise can either be fulfilled with a value, or rejected with a reaso
 
 ```go
   fn := NewPromise(func(resolve ResolveHandler, reject RejectHandler) {
-		time.Sleep(200 * time.Millisecond)
-		reject(errors.New("something wrong"))
-	})
-	var wg sync.WaitGroup
-	wg.Add(1)
-	fn.Then(func(data interface{}) (res interface{}, err error) {
+  	time.Sleep(200 * time.Millisecond)
+  	reject(errors.New("something wrong"))
+  })
+  var wg sync.WaitGroup
+  wg.Add(1)
+  fn.Then(func(data interface{}) (res interface{}, err error) {
     // not excute this block
-		return
-	}).Catch(func(e error) (res interface{}, err error) {
+  	return
+  }).Catch(func(e error) (res interface{}, err error) {
     fmt.Println(e) // error catch here 
     // handleError(e)
+    wg.Done()
+    return
+  })
+  wg.Wait()
+```
+
+- Promise All
+
+```
+  ps := []Interface{p1, p2, p3}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	All(ps).Then(func(data interface{}) (res interface{}, err error) {
+    fmt.Println(data)
 		wg.Done()
 		return
 	})
 	wg.Wait()
+
 ```
 
+- Promise Race
 
+```
+  ps := []Interface{p1, p2, p3}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	All(ps).Race(func(data interface{}) (res interface{}, err error) {
+    fmt.Println(data)
+		wg.Done()
+		return
+	})
+	wg.Wait()
 
-
-
+```
 
 
 

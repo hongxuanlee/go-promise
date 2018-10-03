@@ -114,6 +114,38 @@ func Test_promise_lazy_excute(t *testing.T) {
 	wg.Wait()
 }
 
+func Test_PromiseAll(t *testing.T) {
+	p1 := Resolve(1)
+	p2 := Resolve(2)
+	p3 := Resolve(3)
+
+	ps := []Interface{p1, p2, p3}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	All(ps).Then(func(data interface{}) (res interface{}, err error) {
+		wg.Done()
+		return
+	})
+	wg.Wait()
+}
+
+func Test_PromiseRace(t *testing.T) {
+	p1 := Resolve(1)
+	p := Promisify(addone)
+	p2 := p(2)
+	p3 := p(3)
+
+	ps := []Interface{p1, p2, p3}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	Race(ps).Then(func(data interface{}) (res interface{}, err error) {
+		assertEqual(t, 1, data, "")
+		wg.Done()
+		return
+	})
+	wg.Wait()
+}
+
 func assertEqual(t *testing.T, expect interface{}, actual interface{}, message string) {
 	if expect == actual {
 		return
